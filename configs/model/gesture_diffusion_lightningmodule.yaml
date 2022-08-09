@@ -14,7 +14,8 @@ train_net:
   cell_type: 'LSTM'
   prediction_length: 24
   dropout_rate: 0.2
-  target_dim: 45
+  # target_dim: 45 # upper_body
+  target_dim: 65 # full_body
   conditioning_length: 512
   diff_steps: 100
   loss_type: 'l2'

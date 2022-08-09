@@ -5,6 +5,7 @@ root_dir: ${oc.env:PROJECT_ROOT}
 
 # path to data directory
 data_dir: ${paths.root_dir}/data/GesturesData
+full_body_data_dir: ${paths.root_dir}/data/fullbody_gestures_data
 
 # path to logging directory
 log_dir: ${paths.root_dir}/logs/

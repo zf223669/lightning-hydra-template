@@ -19,13 +19,15 @@ log = utils.get_pylogger(__name__)
 class GestureDataModule(LightningDataModule):
     def __init__(self,
                  data_dir: str = "data/GesturesData",
+                 full_body_data_dir: str = "data/full_body_data_dir",
                  framerate: str = 20,
                  seqlen: int = 5,
                  n_lookahead: int = 20,
                  dropout: float = 0.4,
                  batch_size: int = 80,
                  input_size: int = 972,
-                 num_workers: int = 16
+                 num_workers: int = 16,
+                 is_full_body:bool = False,
 
                  # test: int = 0,
                  ):
@@ -50,8 +52,12 @@ class GestureDataModule(LightningDataModule):
         self.output_scaler = None
         self.input_scaler = None
         self.train_dataset = None
+        self.data_root = None
+        if not is_full_body:
+            self.data_root = data_dir
+        else:
+            self.data_root = full_body_data_dir
 
-        self.data_root = data_dir
         self.framerate = framerate
         self.seqlen = seqlen
         self.n_lookahead = n_lookahead
@@ -59,6 +65,7 @@ class GestureDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.feature_length = None
         self.num_workers = num_workers
+        self.is_full_body = is_full_body
         # endregion
         # this line allows to access init params with 'self.hparams' attribute
 

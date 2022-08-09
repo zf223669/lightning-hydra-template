@@ -330,7 +330,11 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             repeated_control = repeated_control_all[:, (k + 1):((k + 1) + seqlen + 1 + n_lookahead), :]
             repeated_autoreg = repeat(autoreg)
             combined_cond = self.prepare_cond(repeated_autoreg, repeated_control)
-            img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
+            # upper_body
+            # img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
+            #                                       device=combined_cond.device)
+            #full_body
+            img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 65), 1,
                                                   device=combined_cond.device)
             # if self.scaling:
             #     new_samples, _ = self.actnorm(img, None, reverse=True)

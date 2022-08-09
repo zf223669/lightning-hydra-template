@@ -1,12 +1,15 @@
 _target_: src.datamodules.gesture_datamodule.GestureDataModule
 data_dir: ${paths.data_dir} # data_dir is specified in config.yaml
+full_body_data_dir: ${paths.full_body_data_dir}
 #data_dir: '/home/zf223669/Mount/DiffusionGestureGeneration/data/GesturesData'
 framerate: 20
 seqlen: 5
 n_lookahead: 20
 dropout: 0.2
 batch_size: 80
-#input_size: 972
-input_size: 927
+#input_size: 972 # upper_body
+# input_size: 927 # no x_n
+input_size: 1053 # full_body 65 joints
 num_workers: 16
+is_full_body: True
 #input_size: 1017
