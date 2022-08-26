@@ -14,8 +14,8 @@ train_net:
   cell_type: 'LSTM'
   prediction_length: 24
   dropout_rate: 0.2
-  # target_dim: 45 # upper_body
-  target_dim: 65 # full_body
+  target_dim: 45 # upper_body
+  #target_dim: 65 # full_body
   conditioning_length: 512
   diff_steps: 100
   loss_type: 'l2'
@@ -45,7 +45,7 @@ prediction_net:
   residual_channels: ${model.train_net.residual_channels}
   dilation_cycle_length: ${model.train_net.dilation_cycle_length}
   scaling: ${model.train_net.scaling}
-  num_parallel_samples: 200
+  num_parallel_samples: 1
   bvh_save_path: ${paths.output_dir}/bvh
   quantile: 0.5
 

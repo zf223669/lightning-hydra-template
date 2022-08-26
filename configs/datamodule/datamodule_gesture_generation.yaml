@@ -8,8 +8,9 @@ n_lookahead: 20
 dropout: 0.2
 batch_size: 80
 #input_size: 972 # upper_body
-# input_size: 927 # no x_n
-input_size: 1053 # full_body 65 joints
+#input_size: 927 # no x_n fps=20
+input_size: 927
+#input_size: 1053 # full_body 65 joints
 num_workers: 16
-is_full_body: True
+is_full_body: False
 #input_size: 1017

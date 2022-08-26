@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 
 from gluonts.core.component import validated
+import os
 
 from src.models.components.TimeGradTrainingNetwork.utils import weighted_average
 from src.models.components.TimeGradTrainingNetwork.modules import GaussianDiffusion, DiffusionOutput, MeanScaler, \
@@ -67,6 +68,7 @@ class TimeGradTrainingNetwork(nn.Module):
             **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
         log.info(f"-------------------Init TimeGradTrainingNetwork----------------")
         self.target_dim = target_dim
         self.prediction_length = prediction_length
@@ -82,6 +84,7 @@ class TimeGradTrainingNetwork(nn.Module):
             num_layers=num_layers,
             dropout=dropout_rate,
             batch_first=True,
+
         )
 
         self.denoise_fn = EpsilonTheta(  # εΘ learn this function
@@ -101,18 +104,18 @@ class TimeGradTrainingNetwork(nn.Module):
             beta_schedule=beta_schedule,
         )
 
-        self.distr_output = DiffusionOutput(
-            self.diffusion, input_size=target_dim, cond_size=conditioning_length
-        )
-        self.proj_dist_args = self.distr_output.get_args_proj(num_cells)
+        # self.distr_output = DiffusionOutput(
+        #     self.diffusion, input_size=target_dim, cond_size=conditioning_length
+        # )
+        # self.proj_dist_args = self.distr_output.get_args_proj(num_cells)
         self.normal_distribution = GaussianDiag()
 
         # self.proj_dist_args = self.distr_output.get_args_proj(num_cells)
 
-        self.embed_dim = 1
-        self.embed = nn.Embedding(
-            num_embeddings=self.target_dim, embedding_dim=self.embed_dim
-        )
+        # self.embed_dim = 1
+        # self.embed = nn.Embedding(
+        #     num_embeddings=self.target_dim, embedding_dim=self.embed_dim
+        # )
         # self.BatchNorm = nn.BatchNorm1d(num_features=45)
         if self.scaling:
             self.actnorm = ActNorm2d(45, 1.0)
@@ -121,6 +124,7 @@ class TimeGradTrainingNetwork(nn.Module):
         # self.linear = LinearZeroInit(num_cells, 512)
 
         self.forwardCount = 1
+        self.softmax = nn.Softmax(dim=1)
         # if self.scaling:
         #     self.scaler = MeanScaler(keepdim=True)
         # else:
@@ -201,6 +205,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         self.quantile = quantile
         log.info(f"-------------------Init TimeGradPredictionNetwork----------------")
         self.inited_rnn = False
+        
 
         # for decoding the lags are shifted by one,
         # at the first time-step of the decoder a lag of one corresponds to
@@ -334,7 +339,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             # img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
             #                                       device=combined_cond.device)
             #full_body
-            img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 65), 1,
+            img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
                                                   device=combined_cond.device)
             # if self.scaling:
             #     new_samples, _ = self.actnorm(img, None, reverse=True)
