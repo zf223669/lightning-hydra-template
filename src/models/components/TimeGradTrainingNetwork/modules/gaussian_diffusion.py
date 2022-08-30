@@ -190,9 +190,22 @@ class GaussianDiffusion(nn.Module):
         )
         noise = noise_like(x.shape, device, repeat_noise)
         # no noise when timestep == 0
+        # variance_factor = 1
+        # variance_step = 1 / 500
+        # reverse_variance_step = 1-variance_step*timestep
+        # reverse_variance_step = reverse_variance_step.unsqueeze(1)
+        # reverse_variance_step = reverse_variance_step.unsqueeze(2)
+        # reverse_variance_step = torch.cos(reverse_variance_step)
         nonzero_mask = (1 - (timestep == 0).float()).reshape(b, *((1,) * (len(x.shape) - 1)))
-        return model_mean
-               # + nonzero_mask * (0.5 * model_log_variance).exp() * noise
+
+        # return model_mean
+        # + nonzero_mask * (0.5 * model_log_variance).exp() * noise
+        # log.info(f"p_sample: variance_step: {variance_step*timestep}")
+        # log.info(f"-------------------timestep:{timestep} \n noise:{noise} \n {torch.equal(timestep, torch.zeros_like(timestep))}")
+        if torch.equal(timestep, torch.zeros_like(timestep)):
+            noise = torch.zeros_like(noise)
+            # log.info(f"noise: {noise}")
+        return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     @torch.no_grad()
     def p_sample_loop(self, shape, cond, img):

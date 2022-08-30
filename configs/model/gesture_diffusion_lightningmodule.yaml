@@ -17,7 +17,7 @@ train_net:
   target_dim: 45 # upper_body
   #target_dim: 65 # full_body
   conditioning_length: 512
-  diff_steps: 100
+  diff_steps: 1500
   loss_type: 'l2'
   beta_end: 0.1
 #  beta_schedule: 'linear'
@@ -46,6 +46,6 @@ prediction_net:
   dilation_cycle_length: ${model.train_net.dilation_cycle_length}
   scaling: ${model.train_net.scaling}
   num_parallel_samples: 1
-  bvh_save_path: ${paths.output_dir}/bvh
+  bvh_save_path: ${paths.output_dir}/bvh_${now:%Y-%m-%d_%H-%M-%S-}
   quantile: 0.5
 

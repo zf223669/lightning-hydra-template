@@ -4,7 +4,7 @@ import sys
 import numpy as np
 from torch.nn.modules import loss
 from typing import List, Optional, Tuple, Union
-
+from textwrap import wrap
 import torch
 import torch.nn as nn
 
@@ -22,6 +22,8 @@ from tqdm import tqdm
 import ipdb
 from src.models.components.TimeGradTrainingNetwork.modules.act_norm import ActNorm2d
 from src.models.components.TimeGradTrainingNetwork.modules.permute2d import Permute2d
+from scipy.signal import savgol_filter
+import matplotlib.pyplot as plot
 
 log = utils.get_pylogger(__name__)
 
@@ -84,6 +86,7 @@ class TimeGradTrainingNetwork(nn.Module):
             num_layers=num_layers,
             dropout=dropout_rate,
             batch_first=True,
+            # bidirectional=True,
 
         )
 
@@ -124,7 +127,7 @@ class TimeGradTrainingNetwork(nn.Module):
         # self.linear = LinearZeroInit(num_cells, 512)
 
         self.forwardCount = 1
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
         # if self.scaling:
         #     self.scaler = MeanScaler(keepdim=True)
         # else:
@@ -188,7 +191,7 @@ class TimeGradTrainingNetwork(nn.Module):
         rnn_outputs, _ = self.rnn(combined_cond)
         # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
         if self.scaling:
-            x_input, _ = self.actnorm(x_input, None, reverse=False) # TODO: may be problem
+            x_input, _ = self.actnorm(x_input, None, reverse=False)  # TODO: may be problem
         # x_input_scaled = self.shuffle(x_input_scaled, False)
         likelihoods = self.diffusion.log_prob(x_input, rnn_outputs).unsqueeze(-1)
 
@@ -196,7 +199,12 @@ class TimeGradTrainingNetwork(nn.Module):
 
 
 class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
-    def __init__(self, num_parallel_samples: int, bvh_save_path: str, quantile: float = 0.5, **kwargs) -> None:
+    def __init__(self, num_parallel_samples: int,
+                 bvh_save_path: str,
+                 quantile: float = 0.5,
+                 # window_length: int = 51,
+                 # polyorder: int = 2,
+                 **kwargs) -> None:
         super().__init__(**kwargs)
         # self.init_rnn = True
         self.state = None
@@ -205,7 +213,8 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         self.quantile = quantile
         log.info(f"-------------------Init TimeGradPredictionNetwork----------------")
         self.inited_rnn = False
-        
+        # self.window_length = window_length
+        # self.polyorder = polyorder
 
         # for decoding the lags are shifted by one,
         # at the first time-step of the decoder a lag of one corresponds to
@@ -288,6 +297,18 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
     #     log.info(f'samples length: {future_samples.size} type {type(future_samples)} future_samples: {future_samples} ')
     #     # (batch_size, num_samples, prediction_length, target_dim)
     #     return future_samples
+    def showJointData(self, originData, smoothedData):
+        # log.info(os.path.dirname(self.bvh_save_path).replace(',', '\n'))
+        plot.title('\n'.join(wrap(os.path.split(self.bvh_save_path)[0], 60)))
+        # plot.figure(figsize=(16,9))
+        plot.autoscale(enable=True)
+        plot.tight_layout()
+
+        plot.plot(originData[0, :, 0], color="r")
+        plot.plot(smoothedData[0, :, 0], color="b")
+        # plot.xlim(0, 380)
+        # plot.ylim(-3, 3)
+        plot.show()
 
     def forward(self, autoreg_all, control_all, trainer) -> torch.Tensor:
         datamodule = trainer.datamodule
@@ -295,8 +316,9 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         n_lookahead = datamodule.n_lookahead
 
         batch, n_timesteps, n_feats = autoreg_all.shape
-        sampled_all = torch.zeros((batch, n_timesteps - n_lookahead, n_feats))  # [80,380,45]
-        autoreg = torch.zeros((batch, seqlen, n_feats), dtype=torch.float32)  # [80,5,45]
+        sampled_all = torch.zeros((batch, n_timesteps - n_lookahead, n_feats)).cuda()  # [80,380,45]
+        autoreg = torch.zeros((batch, seqlen, n_feats), dtype=torch.float32).cuda()  # [80,5,45]
+        control_all = control_all.cuda()
 
         sampled_all[:, :seqlen, :] = autoreg  # start pose [0,0,0,0,0]
 
@@ -320,6 +342,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         # #     img, _ = self.actnorm(img, None, reverse=True)
         # combined_cond = torch.cat((img, combined_cond), dim=-1)
         rnn_outputs, self.state = self.rnn(combined_cond)
+
         if self.cell_type == "LSTM":
             repeated_states = [repeat(s, dim=1) for s in self.state]
         else:
@@ -335,12 +358,14 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             repeated_control = repeated_control_all[:, (k + 1):((k + 1) + seqlen + 1 + n_lookahead), :]
             repeated_autoreg = repeat(autoreg)
             combined_cond = self.prepare_cond(repeated_autoreg, repeated_control)
+
             # upper_body
             # img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
             #                                       device=combined_cond.device)
-            #full_body
+            # full_body
             img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
                                                   device=combined_cond.device)
+
             # if self.scaling:
             #     new_samples, _ = self.actnorm(img, None, reverse=True)
             # combined_cond = torch.cat((img, combined_cond), dim=-1)
@@ -372,6 +397,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
             # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
             rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
+            # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
             new_samples = self.diffusion.sample(cond=rnn_outputs, img=img)
 
             # new_samples = self.shuffle(new_samples, True)
@@ -394,14 +420,21 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #                                                  n_feats)
             # ipdb.set_trace(context=5)
             # future_samples[:, (k + seqlen), :] = new_samples
-            autoreg = autoreg.cpu().numpy()
-            autoreg = np.concatenate((autoreg[:, 1:, :].copy(), quantile_new_samples[:, None, :].cpu().numpy()), axis=1)
-            autoreg = torch.from_numpy(autoreg).cuda()
+            # autoreg = autoreg.cpu().numpy()
+            # log.info(f"autoreg: {autoreg.device, quantile_new_samples.device}")
+            autoreg = torch.cat((autoreg[:, 1:, :], quantile_new_samples[:, None, :]), dim=1)
+            # autoreg = np.concatenate((autoreg[:, 1:, :].copy(), quantile_new_samples[:, None, :].cpu().numpy()),
+            # axis=1) autoreg = torch.from_numpy(autoreg).cuda()
 
         # sampled_all_done = self.sampling_decoder(autoreg=autoreg, control_all=control_all,
         # begin_states=None, sampled_all=sampled_all, seqlen=seqlen, n_lookahead=n_lookahead, ) log.info(f'final x
         # shape: {x.shape} x = \n {x}')
         future_samples = future_samples.cpu().numpy().copy()
+        # log.info(f"future_samples shape:{future_samples.shape}")
+        # smooth_future_samples = savgol_filter(future_samples, window_length=self.window_length,
+        #                                       polyorder=self.polyorder, mode='nearest', axis=1)
+
+        # self.showJointData(future_samples, smooth_future_samples)
         # log.info(f'sampled_all: {future_samples}, {type(future_samples)}')
         datamodule.save_animation(future_samples, self.bvh_save_path)
         return sampled_all

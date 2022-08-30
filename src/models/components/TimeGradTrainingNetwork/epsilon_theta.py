@@ -8,7 +8,7 @@ logger = log.getLogger('test')
 
 
 class DiffusionEmbedding(nn.Module):
-    def __init__(self, dim, proj_dim, max_steps=500):
+    def __init__(self, dim, proj_dim, max_steps=5000):
         super().__init__()
         self.register_buffer(
             "embedding", self._build_embedding(dim, max_steps), persistent=False

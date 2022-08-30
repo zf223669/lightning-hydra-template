@@ -12,6 +12,9 @@ from src.pymo.writers import *
 import torch
 from scipy import stats
 import pandas as pd
+from scipy.signal import savgol_filter
+import matplotlib.pyplot as plot
+from textwrap import wrap
 
 log = utils.get_pylogger(__name__)
 
@@ -28,6 +31,9 @@ class GestureDataModule(LightningDataModule):
                  input_size: int = 972,
                  num_workers: int = 16,
                  is_full_body:bool = False,
+                 is_smoothing:bool = True,
+                 window_length: int = 51,
+                 polyorder: int = 2,
 
                  # test: int = 0,
                  ):
@@ -66,6 +72,9 @@ class GestureDataModule(LightningDataModule):
         self.feature_length = None
         self.num_workers = num_workers
         self.is_full_body = is_full_body
+        self.window_length = window_length
+        self.polyorder = polyorder
+        self.is_smoothing = is_smoothing
         # endregion
         # this line allows to access init params with 'self.hparams' attribute
 
@@ -190,15 +199,35 @@ class GestureDataModule(LightningDataModule):
         scaled = scaler.inverse_transform(flat).reshape(shape)
         return scaled
 
+    def showJointData(self, originData, smoothedData,filename):
+        # log.info(os.path.dirname(self.bvh_save_path).replace(',', '\n'))
+        plot.title('\n'.join(wrap(os.path.split(filename)[0], 60)))
+        # plot.figure(figsize=(16,9))
+        plot.autoscale(enable=True)
+        plot.tight_layout()
+
+        plot.plot(originData[0, :, 0], color="r")
+        plot.plot(smoothedData[0, :, 0], color="b")
+        # plot.xlim(0, 380)
+        # plot.ylim(-3, 3)
+        plot.show()
+
     def save_animation(self, motion_data, filename):
         print('-----save animation-------------')
         # print(f'motion_data shape: {motion_data.shape}')
         # control_data = control_data.cpu().numpy()
         # motion_data = motion_data.cpu().numpy()
         anim_clips = self.inv_standardize(motion_data[:self.n_test, :, :], self.output_scaler)
-        # print(f'anim_clips shape: {anim_clips.shape}')
-        np.savez(filename + ".npz", clips=anim_clips)
-        self.write_bvh(anim_clips, filename)
+        if self.is_smoothing:
+            smooth_anim_clips = savgol_filter(anim_clips, window_length=self.window_length,
+                                              polyorder=self.polyorder, mode='nearest', axis=1)
+            self.showJointData(anim_clips, smooth_anim_clips,filename)
+            # print(f'anim_clips shape: {anim_clips.shape}')
+            np.savez(filename + ".npz", clips=smooth_anim_clips)
+            self.write_bvh(smooth_anim_clips, filename)
+        else:
+            np.savez(filename + ".npz", clips=anim_clips)
+            self.write_bvh(anim_clips, filename)
 
     def write_bvh(self, anim_clips, filename):
         print('inverse_transform...')
