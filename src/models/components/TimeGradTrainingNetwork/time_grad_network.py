@@ -10,7 +10,7 @@ import torch.nn as nn
 
 from gluonts.core.component import validated
 import os
-
+import time
 from src.models.components.TimeGradTrainingNetwork.utils import weighted_average
 from src.models.components.TimeGradTrainingNetwork.modules import GaussianDiffusion, DiffusionOutput, MeanScaler, \
     NOPScaler
@@ -24,6 +24,7 @@ from src.models.components.TimeGradTrainingNetwork.modules.act_norm import ActNo
 from src.models.components.TimeGradTrainingNetwork.modules.permute2d import Permute2d
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plot
+import pandas as pd
 
 log = utils.get_pylogger(__name__)
 
@@ -75,7 +76,7 @@ class TimeGradTrainingNetwork(nn.Module):
         self.target_dim = target_dim
         self.prediction_length = prediction_length
         self.scaling = scaling
-
+        self.diff_steps = diff_steps
         self.cell_type = cell_type
         # self.init_rnn = True
 
@@ -213,6 +214,9 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         self.quantile = quantile
         log.info(f"-------------------Init TimeGradPredictionNetwork----------------")
         self.inited_rnn = False
+        self.init_generation_frame_time = 0
+        self.gen_elapsed_time = 0
+        self.elapsed_time_list = []
         # self.window_length = window_length
         # self.polyorder = polyorder
 
@@ -355,6 +359,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
 
         for k in tqdm(range(control_all.shape[1] - seqlen - n_lookahead - 1)):
             # ipdb.set_trace(context=5)
+            self.init_generation_frame_time = time.time()
             repeated_control = repeated_control_all[:, (k + 1):((k + 1) + seqlen + 1 + n_lookahead), :]
             repeated_autoreg = repeat(autoreg)
             combined_cond = self.prepare_cond(repeated_autoreg, repeated_control)
@@ -414,6 +419,8 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     quantile_new_samples, _ = self.actnorm(quantile_new_samples, None, reverse=True)
             #     quantile_new_samples = torch.squeeze(quantile_new_samples, dim=1)
             future_samples[:, (k + seqlen), :] = quantile_new_samples
+            self.gen_elapsed_time = time.time() - self.init_generation_frame_time
+            self.elapsed_time_list.append(self.gen_elapsed_time)
             # ipdb.set_trace(context=5)
             # repeated_future_samples[:, (k + seqlen), :] = new_samples
             # future_samples = repeated_future_samples.reshape(-1, self.num_parallel_samples, n_timesteps - n_lookahead,
@@ -436,5 +443,15 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
 
         # self.showJointData(future_samples, smooth_future_samples)
         # log.info(f'sampled_all: {future_samples}, {type(future_samples)}')
+        log.info(f"diffusion Steps: {self.diff_steps} : generate time: {self.elapsed_time_list}")
+
+        log.info(f"mean generation time: {np.mean(self.elapsed_time_list), np.std(self.elapsed_time_list)}")
+        self.elapsed_time_list.append(np.mean(self.elapsed_time_list))
+        self.elapsed_time_list.append(np.std(self.elapsed_time_list))
+        df = pd.DataFrame(columns=["diffstep_"+str(self.diff_steps)], data=self.elapsed_time_list)
+        # xml_path = "./" + str(self.diff_steps) + "generation_elapsed_time.xlsx"
+        excel_path = f'{self.bvh_save_path}_diff_steps_{str(self.diff_steps)}.xlsx'
+        df.to_excel(excel_path)
         datamodule.save_animation(future_samples, self.bvh_save_path)
+
         return sampled_all

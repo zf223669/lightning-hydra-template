@@ -234,7 +234,8 @@ class GestureDataModule(LightningDataModule):
         inv_data = self.data_pipe.inverse_transform(anim_clips)
         writer = BVHWriter()
         for i in range(0, anim_clips.shape[0]):
-            filename_ = f'{filename}_{str(i)}.bvh'
-            print('writing:' + filename_)
-            with open(filename_, 'w') as f:
-                writer.write(inv_data[i], f, framerate=self.framerate)
+            if i < 1:
+                filename_ = f'{filename}_{str(i)}.bvh'
+                print('writing:' + filename_)
+                with open(filename_, 'w') as f:
+                    writer.write(inv_data[i], f, framerate=self.framerate)

@@ -12,6 +12,7 @@ import hydra
 import omegaconf
 import pyrootutils
 import ipdb
+import time
 
 log = utils.get_pylogger(__name__)
 
@@ -47,16 +48,25 @@ class GestureTimeGradLightingModule(LightningModule):
         self.train_net = train_net
         self.prediction_net = prediction_net
         self.train_step_count = 1
+        self.train_time_list = []
+        self.generation_time_list = []
+        self.train_init_time = 0
+        self.train_elapsed_time = 0
+        self.generation_init_time = 0
+        self.generation_elapsed_time = 0
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor):
         trainer = self.trainer
-        return self.train_net(trainer,x, cond)
+        return self.train_net(trainer, x, cond)
 
     def on_train_start(self):
         # by default lightning executes validation step sanity checks before training starts,
         # so we need to make sure val_acc_best doesn'timestep store accuracy from these checks
         # self.val_acc_best.reset()
         pass
+
+    def on_train_epoch_start(self):
+        self.train_init_time = time.time()
 
     def train_step(self, batch: Any):
         x = batch["x"]  # the output of body pose corresponding to the condition [80,95,45]
@@ -68,7 +78,7 @@ class GestureTimeGradLightingModule(LightningModule):
         # log.info(f"-------------------training_step----------------")
         likelihoods, loss = self.train_step(batch)
         self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        log.info(f"train_step count: {self.train_step_count}  train mean_loss: {loss}")
+        # log.info(f"train_step count: {self.train_step_count}  train mean_loss: {loss}")
         self.train_step_count += 1
         return loss
         # return {"likelihoods": likelihoods, "mean_loss": mean_loss}
@@ -77,12 +87,24 @@ class GestureTimeGradLightingModule(LightningModule):
         # `outputs` is a list of dicts returned from `training_step()`
         # self.train_acc.reset()
         self.train_step_count = 0
+        self.train_elapsed_time = time.time() - self.train_init_time
+        self.log("TrainingTime", self.train_elapsed_time, on_step=False, on_epoch=True, prog_bar=True)
+        self.train_time_list.append(self.train_elapsed_time)
+        # log.info(f"training Time: {self.train_time_list}")
+
+    def on_train_end(self) -> None:
+        mean_train_time = np.mean(self.train_time_list)
+        std_train_time = np.std(self.train_time_list)
+        log.info(f"Mean training epoch time : {mean_train_time}")
+        log.info(f"Std training epoch time : {std_train_time}")
+        # self.log("mean_train_time", float(mean_train_time), on_step=False, on_epoch=True, prog_bar=True)
+        # self.log("std_train_time", float(std_train_time), on_step=False, on_epoch=True, prog_bar=True)
 
     def validation_step(self, batch: Any, batch_idx: int):
         # log.info(f"-------------------validation_step----------------")
         likelihoods, loss = self.train_step(batch)
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        log.info(f"val mean_loss: {loss}")
+        # log.info(f"val mean_loss: {loss}")
         return {"loss": loss, "likelihoods": likelihoods}
 
     def validation_epoch_end(self, outputs: List[Any]):
@@ -91,12 +113,16 @@ class GestureTimeGradLightingModule(LightningModule):
     def on_test_start(self):
         # log.info('-----------------on_test_start--------------')
         copy_parameters(self.train_net, self.prediction_net)
+
         # for name, train_net_para in self.train_net.named_parameters():
         #     log.info(f'train_net_para: {name}:\n {train_net_para.data}')
         # log.info('\n')
         # for name, prediction_net_para in self.prediction_net.named_parameters():
         #     # log.info(f'prediction_net_para: {name}:\n {prediction_net_para.data}')
         #     log.info(f'prediction_net_para: {name}:\n {prediction_net_para.data}')
+
+    def on_test_epoch_start(self) -> None:
+        self.generation_init_time = time.time()
 
     def test_step(self, batch: Any, batch_idx: int):
         # ipdb.set_trace()
@@ -109,8 +135,18 @@ class GestureTimeGradLightingModule(LightningModule):
 
     def test_epoch_end(self, outputs: List[Any]):
         # self.test_acc.reset()
-        pass
+        self.generation_elapsed_time = time.time() - self.generation_init_time
+        self.generation_time_list.append(self.generation_elapsed_time)
+        self.log("GenerationTime", self.generation_elapsed_time, on_step=False, on_epoch=True, prog_bar=True)
+        log.info(f"Generation Time: {self.generation_time_list}")
 
+    def on_test_end(self) -> None:
+        mean_generation_time = np.mean(self.generation_time_list)
+        std_generation_time = np.std(self.generation_time_list)
+        log.info(f"Mean generation epoch time : {mean_generation_time}")
+        log.info(f"Std generation epoch time : {std_generation_time}")
+        # self.log("mean_generation_time", float(mean_generation_time), on_step=False, on_epoch=True, prog_bar=True)
+        # self.log("std_generation_time", float(std_generation_time), on_step=False, on_epoch=True, prog_bar=True)
     def configure_optimizers(self):
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
         Normally you'd need one. But in the case of GANs or similar you might have multiple.
@@ -131,3 +167,4 @@ if __name__ == "__main__":
     root = pyrootutils.setup_root(__file__, pythonpath=True)
     cfg = omegaconf.OmegaConf.load(root / "configs" / "model" / "gesture_diffusion_lightningmodule.yaml")
     _ = hydra.utils.instantiate(cfg)
+
