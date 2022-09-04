@@ -30,8 +30,8 @@ class GestureDataModule(LightningDataModule):
                  batch_size: int = 80,
                  input_size: int = 972,
                  num_workers: int = 16,
-                 is_full_body:bool = False,
-                 is_smoothing:bool = True,
+                 is_full_body: bool = False,
+                 is_smoothing: bool = True,
                  window_length: int = 51,
                  polyorder: int = 2,
 
@@ -199,20 +199,20 @@ class GestureDataModule(LightningDataModule):
         scaled = scaler.inverse_transform(flat).reshape(shape)
         return scaled
 
-    def showJointData(self, originData, smoothedData,filename):
+    def showJointData(self, originData, smoothedData, filename):
         # log.info(os.path.dirname(self.bvh_save_path).replace(',', '\n'))
         plot.title('\n'.join(wrap(os.path.split(filename)[0], 60)))
         # plot.figure(figsize=(16,9))
         plot.autoscale(enable=True)
         plot.tight_layout()
 
-        plot.plot(originData[0, :, 0], color="r")
-        plot.plot(smoothedData[0, :, 0], color="b")
+        plot.plot(originData[0, :, 9], color="r")
+        plot.plot(smoothedData[0, :, 9], color="b")
         # plot.xlim(0, 380)
         # plot.ylim(-3, 3)
         plot.show()
 
-    def save_animation(self, motion_data, filename):
+    def save_animation(self, motion_data, filename, paramValue):
         print('-----save animation-------------')
         # print(f'motion_data shape: {motion_data.shape}')
         # control_data = control_data.cpu().numpy()
@@ -221,21 +221,21 @@ class GestureDataModule(LightningDataModule):
         if self.is_smoothing:
             smooth_anim_clips = savgol_filter(anim_clips, window_length=self.window_length,
                                               polyorder=self.polyorder, mode='nearest', axis=1)
-            self.showJointData(anim_clips, smooth_anim_clips,filename)
+            self.showJointData(anim_clips, smooth_anim_clips, filename)
             # print(f'anim_clips shape: {anim_clips.shape}')
             np.savez(filename + ".npz", clips=smooth_anim_clips)
-            self.write_bvh(smooth_anim_clips, filename)
+            self.write_bvh(smooth_anim_clips, filename, paramValue)
         else:
             np.savez(filename + ".npz", clips=anim_clips)
             self.write_bvh(anim_clips, filename)
 
-    def write_bvh(self, anim_clips, filename):
+    def write_bvh(self, anim_clips, filename, paramValue):
         print('inverse_transform...')
         inv_data = self.data_pipe.inverse_transform(anim_clips)
         writer = BVHWriter()
         for i in range(0, anim_clips.shape[0]):
-            if i < 1:
-                filename_ = f'{filename}_{str(i)}.bvh'
+            if i < 20:
+                filename_ = f'{filename}{paramValue}__{str(i)}.bvh'
                 print('writing:' + filename_)
                 with open(filename_, 'w') as f:
                     writer.write(inv_data[i], f, framerate=self.framerate)

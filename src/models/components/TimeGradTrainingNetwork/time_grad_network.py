@@ -359,7 +359,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
 
         for k in tqdm(range(control_all.shape[1] - seqlen - n_lookahead - 1)):
             # ipdb.set_trace(context=5)
-            self.init_generation_frame_time = time.time()
+
             repeated_control = repeated_control_all[:, (k + 1):((k + 1) + seqlen + 1 + n_lookahead), :]
             repeated_autoreg = repeat(autoreg)
             combined_cond = self.prepare_cond(repeated_autoreg, repeated_control)
@@ -401,6 +401,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     # rnn_outputs, self.state = self.rnn(combined_cond, self.state)
             #     rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
             # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
+            self.init_generation_frame_time = time.time()
             rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
             # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
             new_samples = self.diffusion.sample(cond=rnn_outputs, img=img)
@@ -419,8 +420,10 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     quantile_new_samples, _ = self.actnorm(quantile_new_samples, None, reverse=True)
             #     quantile_new_samples = torch.squeeze(quantile_new_samples, dim=1)
             future_samples[:, (k + seqlen), :] = quantile_new_samples
-            self.gen_elapsed_time = time.time() - self.init_generation_frame_time
-            self.elapsed_time_list.append(self.gen_elapsed_time)
+            # time epapsed
+            # self.gen_elapsed_time = time.time() - self.init_generation_frame_time
+            # self.elapsed_time_list.append(self.gen_elapsed_time)
+
             # ipdb.set_trace(context=5)
             # repeated_future_samples[:, (k + seqlen), :] = new_samples
             # future_samples = repeated_future_samples.reshape(-1, self.num_parallel_samples, n_timesteps - n_lookahead,
@@ -443,15 +446,17 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
 
         # self.showJointData(future_samples, smooth_future_samples)
         # log.info(f'sampled_all: {future_samples}, {type(future_samples)}')
-        log.info(f"diffusion Steps: {self.diff_steps} : generate time: {self.elapsed_time_list}")
+        # time elapsed
+        # log.info(f"diffusion Steps: {self.diff_steps} : generate time: {self.elapsed_time_list}")
+        #
+        # log.info(f"mean generation time: {np.mean(self.elapsed_time_list), np.std(self.elapsed_time_list)}")
+        # self.elapsed_time_list.append(np.mean(self.elapsed_time_list))
+        # self.elapsed_time_list.append(np.std(self.elapsed_time_list))
+        # df = pd.DataFrame(columns=["diffstep_"+str(self.diff_steps)], data=self.elapsed_time_list)
+        # # xml_path = "./" + str(self.diff_steps) + "generation_elapsed_time.xlsx"
+        # excel_path = f'{self.bvh_save_path}_diff_steps_{str(self.diff_steps)}.xlsx'
+        # df.to_excel(excel_path)
 
-        log.info(f"mean generation time: {np.mean(self.elapsed_time_list), np.std(self.elapsed_time_list)}")
-        self.elapsed_time_list.append(np.mean(self.elapsed_time_list))
-        self.elapsed_time_list.append(np.std(self.elapsed_time_list))
-        df = pd.DataFrame(columns=["diffstep_"+str(self.diff_steps)], data=self.elapsed_time_list)
-        # xml_path = "./" + str(self.diff_steps) + "generation_elapsed_time.xlsx"
-        excel_path = f'{self.bvh_save_path}_diff_steps_{str(self.diff_steps)}.xlsx'
-        df.to_excel(excel_path)
-        datamodule.save_animation(future_samples, self.bvh_save_path)
+        datamodule.save_animation(future_samples, self.bvh_save_path, "diffstep_" + str(self.diff_steps))
 
         return sampled_all
