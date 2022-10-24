@@ -19,6 +19,14 @@ from textwrap import wrap
 log = utils.get_pylogger(__name__)
 
 
+def standardize(data, scaler):
+    shape = data.shape
+    print(f"standarize data.shape: {data.shape}")
+    flat = data.copy().reshape((shape[0] * shape[1], shape[2]))  # StandardScaler expected <= 2
+    scaled = scaler.transform(flat).reshape(shape)
+    return scaled
+
+
 class GestureDataModule(LightningDataModule):
     def __init__(self,
                  data_dir: str = "data/GesturesData",
@@ -39,6 +47,8 @@ class GestureDataModule(LightningDataModule):
                  ):
         super(GestureDataModule, self).__init__()
         # region variable define
+        self.predict_dataset = None
+        self.predict_input = None
         self.test_output = None
         self.val_output = None
         self.val_input = None
@@ -111,7 +121,10 @@ class GestureDataModule(LightningDataModule):
             'clips'].astype(np.float32)
         log.info(
             f'prepare_data --> test_input shape: {self.test_input.shape} test_output shape: {self.test_output.shape}')
-        # log.info(self.test_input)
+
+        self.predict_input = np.load(
+            os.path.join(self.data_root, 'AudioData/Features/', 'Recording_008.npy')).astype(np.float32)
+        log.info(f"self.predict_input: {self.predict_input.shape}")
 
     def setup(self, stage: Optional[str] = None) -> None:
         log.info('-----------------setup_______________________')
@@ -149,6 +162,18 @@ class GestureDataModule(LightningDataModule):
             # log.info(f'setup --> test_output shape: {test_output.shape} \n {test_output}')
             self.test_dataset = TestDataset(test_input, test_output)
             # self.test_dataset = TestDataset(test_input, self.test_output)
+        if stage in (None, "predict"):
+            log.info(f'-----------------setup stage: {stage}')
+            self.n_x_channels = self.output_scaler.mean_.shape[0]
+            self.n_cond_channels = self.n_x_channels * self.seqlen + 27 * (
+                    self.seqlen + 1 + self.n_lookahead)
+            self.feature_length = self.n_x_channels + self.n_cond_channels
+            self.predict_input = np.expand_dims(self.predict_input, 0)
+            predict_ctrl = standardize(self.predict_input, self.input_scaler)
+            predict_output = np.zeros(
+                (self.predict_input.shape[0], self.predict_input.shape[1], self.n_x_channels)).astype(
+                np.float32)
+            self.predict_dataset = TestDataset(predict_ctrl, predict_output)
 
     def n_channels(self):
         return self.n_x_channels, self.n_cond_channels
@@ -185,11 +210,11 @@ class GestureDataModule(LightningDataModule):
 
     def predict_dataloader(self):
         predict_data_loader = DataLoader(
-            self.test_dataset,
+            self.predict_dataset,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             shuffle=False,
-            drop_last=True
+            drop_last=False
         )
         return predict_data_loader
 
@@ -205,12 +230,14 @@ class GestureDataModule(LightningDataModule):
         # plot.figure(figsize=(16,9))
         plot.autoscale(enable=True)
         plot.tight_layout()
-
+        fig = plot.gcf()
+        fig.set_size_inches(1024 / 2.0, 1024 / 2.0)
         plot.plot(originData[0, :, 9], color="r")
         plot.plot(smoothedData[0, :, 9], color="b")
         # plot.xlim(0, 380)
         # plot.ylim(-3, 3)
         plot.show()
+        plot.savefig(filename, format='png', transparent=True, dpi=200)
 
     def save_animation(self, motion_data, filename, paramValue):
         print('-----save animation-------------')
@@ -221,7 +248,7 @@ class GestureDataModule(LightningDataModule):
         if self.is_smoothing:
             smooth_anim_clips = savgol_filter(anim_clips, window_length=self.window_length,
                                               polyorder=self.polyorder, mode='nearest', axis=1)
-            self.showJointData(anim_clips, smooth_anim_clips, filename)
+            # self.showJointData(anim_clips, smooth_anim_clips, filename)
             # print(f'anim_clips shape: {anim_clips.shape}')
             np.savez(filename + ".npz", clips=smooth_anim_clips)
             self.write_bvh(smooth_anim_clips, filename, paramValue)
@@ -235,7 +262,7 @@ class GestureDataModule(LightningDataModule):
         writer = BVHWriter()
         for i in range(0, anim_clips.shape[0]):
             if i < 20:
-                filename_ = f'{filename}{paramValue}__{str(i)}.bvh'
+                filename_ = f'{filename}{paramValue}_{str(i)}.bvh'
                 print('writing:' + filename_)
                 with open(filename_, 'w') as f:
                     writer.write(inv_data[i], f, framerate=self.framerate)

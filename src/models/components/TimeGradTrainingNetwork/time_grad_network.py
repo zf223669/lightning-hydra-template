@@ -314,7 +314,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
         # plot.ylim(-3, 3)
         plot.show()
 
-    def forward(self, autoreg_all, control_all, trainer) -> torch.Tensor:
+    def forward(self, autoreg_all, control_all, trainer, is_predict_stage=True) :
         datamodule = trainer.datamodule
         seqlen = datamodule.seqlen
         n_lookahead = datamodule.n_lookahead
@@ -368,8 +368,15 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             # img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
             #                                       device=combined_cond.device)
             # full_body
-            img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
-                                                  device=combined_cond.device)
+            self.init_generation_frame_time = time.time()
+            img = None
+            if not is_predict_stage:
+                img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
+                                                      device=combined_cond.device)
+            # prediction
+            else:
+                img = self.normal_distribution.sample((datamodule.batch_size * self.num_parallel_samples, 1, 45), 1,
+                                                      device=combined_cond.device)
 
             # if self.scaling:
             #     new_samples, _ = self.actnorm(img, None, reverse=True)
@@ -401,7 +408,7 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     # rnn_outputs, self.state = self.rnn(combined_cond, self.state)
             #     rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
             # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
-            self.init_generation_frame_time = time.time()
+
             rnn_outputs, repeated_states = self.rnn(combined_cond, repeated_states)
             # distr_args = self.distr_args(rnn_outputs=rnn_outputs)
             new_samples = self.diffusion.sample(cond=rnn_outputs, img=img)
@@ -420,9 +427,9 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
             #     quantile_new_samples, _ = self.actnorm(quantile_new_samples, None, reverse=True)
             #     quantile_new_samples = torch.squeeze(quantile_new_samples, dim=1)
             future_samples[:, (k + seqlen), :] = quantile_new_samples
-            # time epapsed
-            # self.gen_elapsed_time = time.time() - self.init_generation_frame_time
-            # self.elapsed_time_list.append(self.gen_elapsed_time)
+            # gen_elapsed_time
+            self.gen_elapsed_time = time.time() - self.init_generation_frame_time
+            self.elapsed_time_list.append(self.gen_elapsed_time)
 
             # ipdb.set_trace(context=5)
             # repeated_future_samples[:, (k + seqlen), :] = new_samples
@@ -459,4 +466,4 @@ class TimeGradPredictionNetwork(TimeGradTrainingNetwork):
 
         datamodule.save_animation(future_samples, self.bvh_save_path, "diffstep_" + str(self.diff_steps))
 
-        return sampled_all
+        return sampled_all,self.elapsed_time_list

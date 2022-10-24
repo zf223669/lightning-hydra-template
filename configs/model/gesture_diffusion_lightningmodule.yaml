@@ -1,5 +1,5 @@
 _target_: src.models.gesture_time_grad_module.GestureTimeGradLightingModule
-
+is_predict_stage: False
 optimizer:
   _target_: torch.optim.Adam
   _partial_: true
@@ -46,6 +46,6 @@ prediction_net:
   dilation_cycle_length: ${model.train_net.dilation_cycle_length}
   scaling: ${model.train_net.scaling}
   num_parallel_samples: 1
-  bvh_save_path: ${paths.output_dir}/bvh_${now:%Y-%m-%d_%H-%M-%S-}
+  bvh_save_path: ${paths.output_dir}/bvh_${now:%Y-%m-%d_%H-%M_}
   quantile: 0.5
 

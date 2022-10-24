@@ -1,0 +1,5 @@
+--multirun
+model.train_net.diff_steps=600
+model.is_predict_stage=True
+datamodule.batch_size=1
+ckpt_path='/home/zf223669/Mount/DiffusionGestureGeneration/logs/gesture_generation/multiruns/2022-09-05_14-01/6_model.train_net.diff_steps=600/checkpoints/last.ckpt'

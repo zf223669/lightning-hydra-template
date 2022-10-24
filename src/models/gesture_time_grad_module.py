@@ -37,11 +37,13 @@ class GestureTimeGradLightingModule(LightningModule):
             train_net: torch.nn.Module,
             prediction_net: torch.nn.Module,
             optimizer: torch.optim.Optimizer,
+            is_predict_stage=False
     ):
         super().__init__()
 
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
+        self.is_predict_stage = False
         self.save_hyperparameters(logger=True, ignore=["train_net"])
         self.save_hyperparameters(logger=True, ignore=["prediction_net"])
 
@@ -113,7 +115,7 @@ class GestureTimeGradLightingModule(LightningModule):
     def on_test_start(self):
         # log.info('-----------------on_test_start--------------')
         copy_parameters(self.train_net, self.prediction_net)
-
+        self.is_predict_stage = False
         # for name, train_net_para in self.train_net.named_parameters():
         #     log.info(f'train_net_para: {name}:\n {train_net_para.data}')
         # log.info('\n')
@@ -130,7 +132,11 @@ class GestureTimeGradLightingModule(LightningModule):
         # log.info(f'test_step -> autoreg_all shape: {autoreg_all.shape} \n {autoreg_all}')
         control_all = batch["control"].cuda()  # [80,400,27]
         trainer = self.trainer
-        output = self.prediction_net.forward(autoreg_all, control_all, trainer)
+        output, generation_elapse_time_list = self.prediction_net.forward(autoreg_all, control_all, trainer)
+        mean_generation_time = torch.mean(torch.tensor(generation_elapse_time_list))
+        std_generation_time = torch.std(torch.tensor(generation_elapse_time_list))
+        self.log("mean_generation_time", mean_generation_time, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("std_generation_time", std_generation_time, on_step=False, on_epoch=True, prog_bar=True)
         return output
 
     def test_epoch_end(self, outputs: List[Any]):
@@ -145,8 +151,26 @@ class GestureTimeGradLightingModule(LightningModule):
         std_generation_time = np.std(self.generation_time_list)
         log.info(f"Mean generation epoch time : {mean_generation_time}")
         log.info(f"Std generation epoch time : {std_generation_time}")
+
         # self.log("mean_generation_time", float(mean_generation_time), on_step=False, on_epoch=True, prog_bar=True)
         # self.log("std_generation_time", float(std_generation_time), on_step=False, on_epoch=True, prog_bar=True)
+
+    def on_predict_epoch_start(self) -> None:
+        log.info('On_prediction_Epoch_Start------------')
+
+    def on_predict_epoch_end(self, results: List[Any]) -> None:
+        pass
+
+    def predict_step(self, batch: Any, batch_idx: int):
+        log.info('-----------predict_step----------------')
+        autoreg_all = batch["autoreg"].cuda()  # [20, 400, 45]
+        # log.info(f'test_step -> autoreg_all shape: {autoreg_all.shape} \n {autoreg_all}')
+        control_all = batch["control"].cuda()  # [80,400,27]
+        self.is_predict_stage = True
+        trainer = self.trainer
+        output = self.prediction_net.forward(autoreg_all, control_all, trainer, self.is_predict_stage)
+        return output
+
     def configure_optimizers(self):
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
         Normally you'd need one. But in the case of GANs or similar you might have multiple.
@@ -167,4 +191,3 @@ if __name__ == "__main__":
     root = pyrootutils.setup_root(__file__, pythonpath=True)
     cfg = omegaconf.OmegaConf.load(root / "configs" / "model" / "gesture_diffusion_lightningmodule.yaml")
     _ = hydra.utils.instantiate(cfg)
-

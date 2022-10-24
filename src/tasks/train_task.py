@@ -76,7 +76,10 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         if ckpt_path == "":
             log.warning("Best ckpt not found! Using current weights for testing...")
             ckpt_path = None
-        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        if not cfg.model.is_predict_stage:
+            trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        elif cfg.model.is_predict_stage:
+            trainer.predict(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
 
     test_metrics = trainer.callback_metrics
