@@ -292,3 +292,4 @@ cython_debug/
 
 /logs/gesture_generation/
 /logs/train/
+!/data/GesturesData60/
