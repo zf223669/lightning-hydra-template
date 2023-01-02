@@ -336,7 +336,7 @@ def json_time_to_deciseconds(time_in_text):
     # Remove the unit ('s' as in seconds) from the representation
     time_in_seconds = float(time_in_text.rstrip('s'))
 
-    return int(time_in_seconds * 10)
+    return int(time_in_seconds * 20)
 
 
 def extract_word_attributes(word_data):
@@ -347,10 +347,11 @@ def extract_word_attributes(word_data):
     word = word_data['word']
 
     # Syllables per decisecond
-    speed = count_syllables(word) / duration if duration > 0 else 10  # Because the text freq. is 10FPS
+    speed = count_syllables(word) / duration if duration > 0 else 20  # Because the text freq. is 10FPS
 
     attributes = {'start_time': start_time, 'end_time': end_time,
                   'duration': duration, 'speed': speed}
+    # print(f"attributes = {attributes}")
 
     return attributes
 

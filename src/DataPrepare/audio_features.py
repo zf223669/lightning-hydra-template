@@ -13,7 +13,7 @@ def extract_melspec(audio_dir, files, destpath, fps):
         file = os.path.join(audio_dir, f + '.wav')
         outfile = destpath + '/' + f + '.npy'
 
-        print('{}\t->\t{}'.format(file, outfile))
+        # print('{}\t->\t{}'.format(file, outfile))
         # fs1, X1 = wav.read(file)
         X, fs = librosa.load(file,sr=None)
         # print("X1" + str(X1))
@@ -39,5 +39,6 @@ def extract_melspec(audio_dir, files, destpath, fps):
         # print(C.shape)
         # print(np.min(C), np.max(C))
         np.save(outfile, np.transpose(C))
+        print(f"audio feature {np.shape(np.transpose(C))}")
         # dataC = np.load(outfile)
         # print('DataC {}'.format(dataC.shape))

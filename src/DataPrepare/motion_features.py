@@ -83,8 +83,10 @@ def extract_joint_angles(bvh_dir, files, destpath, fps, fullbody=False):
     fi = 0
     for f in files:
         ff = os.path.join(destpath, f)
-        print(ff)
+        # print(ff)zf223669
+
         np.savez(ff + ".npz", clips=out_data[fi])
+        print(f"motion shape: {np.shape(out_data[fi])}")
         np.savez(ff + "_mirrored.npz", clips=out_data[len(files) + fi])
         fi = fi + 1
 
