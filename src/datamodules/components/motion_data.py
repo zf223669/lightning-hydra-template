@@ -20,6 +20,7 @@ class MotionDataset(Dataset):
         n_lookahead: number of future control-values
         dropout: (0-1) dropout probability for previous poses
         """
+        log.info('MotionDataset... ...')
         self.framerate = framerate
         self.seqlen = seqlen
         self.dropout = dropout
@@ -38,8 +39,8 @@ class MotionDataset(Dataset):
 
         # conditioning
 
-        # log.info("autoreg:" + str(autoreg.shape))
-        # log.info("control:" + str(control.shape))
+        log.info("autoreg:" + str(autoreg.shape))
+        log.info("control:" + str(control.shape))
         new_cond = np.concatenate((autoreg, control),
                                   axis=2)  # [8428,95,927] [B,S,F`] F` with previous gesture features and audio features
 
@@ -72,7 +73,9 @@ class MotionDataset(Dataset):
         for ii in range(0, seqlen):
             inds[:, ii] = np.transpose(rng[ii:(n_timesteps - (seqlen - ii - 1))])
 
-            # slice each sample into L sequences and store as new samples
+        # slice each sample into L sequences and store as new samples
+        # memory crash
+        #cc = data[:, inds, :].copy()
         cc = data[:, inds, :].copy()
 
         # print ("cc: " + str(cc.shape))

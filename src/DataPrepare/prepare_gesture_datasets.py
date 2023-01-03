@@ -180,8 +180,12 @@ def import_data_tri(file, motion_path, speech_data, transcript_path, mirror=Fals
     speech_data = np.load(os.path.join(speech_path, file + '.npy')).astype(np.float32)
 
     if transcript_path is not None:
-        transcript_data = np.load(os.path.join(transcript_path, file + suffix + '.npy')).astype(np.float32)
+
+        transcript_data = np.load(os.path.join(transcript_path, file + '.npy')).astype(np.float32)
         control_data = align_tri(speech_data, transcript_data[:])
+        if file in held_out:
+            print(f'--------{file}: {np.shape(control_data)}')
+            np.save(os.path.join(processed_dir, f'AudioData/Features/Recording_008.npy'), control_data)
     else:
         control_data = speech_data
 
@@ -202,12 +206,13 @@ def import_and_slice_tri(files, motion_path, speech_data, transcript_path, slice
         print(f'import_and_slice: {file}')
 
         # slice dataset
-        concat_data, n_motion_feats = import_data(file, motion_path, speech_data, transcript_path, False, start, end)
-        sliced = slice_data(concat_data, slice_window, slice_overlap)
+        concat_data, n_motion_feats = import_data_tri(file, motion_path, speech_data, transcript_path, False, start,
+                                                      end)
+        sliced = slice_data_tri(concat_data, slice_window, slice_overlap)
 
         if mirror:
-            concat_mirr, nmf = import_data(file, motion_path, speech_data, transcript_path, True, start, end)
-            sliced_mirr = slice_data(concat_mirr, slice_window, slice_overlap)
+            concat_mirr, nmf = import_data_tri(file, motion_path, speech_data, transcript_path, True, start, end)
+            sliced_mirr = slice_data_tri(concat_mirr, slice_window, slice_overlap)
 
             # append to the sliced dataset
             sliced = np.concatenate((sliced, sliced_mirr), axis=0)
@@ -345,7 +350,7 @@ if __name__ == "__main__":
                 transcripts_file = os.path.join(transcripts_path, f + '.npy')
                 np.save(transcripts_file, text_encoding)
 
-                print(np.shape(text_encoding))
+                print(f'{f} = {np.shape(text_encoding)}')
     else:
         print('Found transcripts features. skipping processing...')
 
@@ -416,9 +421,11 @@ if __name__ == "__main__":
     # # tuning (dev) and evaluation (test)
 
     dev_motion, dev_ctrl = import_and_slice_tri(held_out, motion_path, speech_path, transcripts_path, slice_win_test, 0,
-                                            mirror=False, start=0, end=val_test_split)
-    test_motion, test_ctrl = import_and_slice_tri(held_out, motion_path, speech_path, transcripts_path, slice_win_test, 0,
-                                              mirror=False, start=val_test_split)
+                                                mirror=False, start=0, end=val_test_split)
+    test_motion, test_ctrl = import_and_slice_tri(held_out, motion_path, speech_path, transcripts_path, slice_win_test,
+                                                  0,
+                                                  mirror=False, start=val_test_split)
+    print(f'test_ctrl shape : {np.shape(test_ctrl)}')
 
     # dev_motion, dev_ctrl = import_and_slice(held_out, motion_path, speech_path, style_path, slice_win_test, 0,
     #                                         mirror=False, start=0, end=val_test_split)
@@ -454,6 +461,17 @@ if __name__ == "__main__":
     np.savez(os.path.join(processed_dir, f'dev_input_{fps}fps.npz'), clips=dev_ctrl)
     np.savez(os.path.join(processed_dir, f'test_output_{fps}fps.npz'), clips=test_motion)
     np.savez(os.path.join(processed_dir, f'test_input_{fps}fps.npz'), clips=test_ctrl)
+
+    predict_audio_ctrl_path = os.path.join(processed_dir, f'features_{fps}fps/melspec/Recording_008.npy')
+    predict_transcript_ctrl_path = os.path.join(processed_dir, f'features_{fps}fps/transcripts/Recording_008.npy')
+
+    print(f'audio_ctrl_path: {os.path.exists(predict_audio_ctrl_path)}')
+    print(f'transcript_ctrl_path: {os.path.exists(predict_transcript_ctrl_path)}')
+    audio_ctrl_test = np.load(predict_audio_ctrl_path).astype(np.float32)
+    transcript_ctrl_test = np.load(predict_transcript_ctrl_path).astype(np.float32)
+    print(np.shape(audio_ctrl_test))
+    print(np.shape(transcript_ctrl_test))
+
     #
     # # finally prepare data for visualisation, i.e. the dev and test data in wav and bvh format
     dev_vispath = os.path.join(processed_dir, 'visualization_dev')

@@ -31,6 +31,7 @@ class GestureDataModule(LightningDataModule):
     def __init__(self,
                  data_dir: str = "data/GesturesData",
                  full_body_data_dir: str = "data/full_body_data_dir",
+                 with_transcript_data_dir: str = "data/with_transcript_data_dir",
                  framerate: str = 20,
                  seqlen: int = 5,
                  n_lookahead: int = 20,
@@ -39,6 +40,7 @@ class GestureDataModule(LightningDataModule):
                  input_size: int = 972,
                  num_workers: int = 16,
                  is_full_body: bool = False,
+                 is_with_transcript: bool = False,
                  is_smoothing: bool = True,
                  window_length: int = 51,
                  polyorder: int = 2,
@@ -74,6 +76,11 @@ class GestureDataModule(LightningDataModule):
         else:
             self.data_root = full_body_data_dir
 
+        if not is_with_transcript:
+            self.data_root = data_dir
+        else:
+            self.data_root = with_transcript_data_dir
+
         self.framerate = framerate
         self.seqlen = seqlen
         self.n_lookahead = n_lookahead
@@ -91,7 +98,7 @@ class GestureDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
     def prepare_data(self):
-        log.info('-----------------prepare_data_______________________')
+        log.info('-----------------prepare_data: Load data-----------------')
         # log.info(f"Diff Flow Datamodule => {sys._getframe().f_code.co_name}()")
         # load scalers
         print(os.path.join(self.data_root, 'input_scaler.sav'))
@@ -127,7 +134,7 @@ class GestureDataModule(LightningDataModule):
         log.info(f"self.predict_input: {self.predict_input.shape}")
 
     def setup(self, stage: Optional[str] = None) -> None:
-        log.info('-----------------setup_______________________')
+        log.info('-----------------setup, construct dataset-----------------')
         if stage in (None, "fit"):
             log.info(f'-----------------setup stage: {stage}')
             # Create pytorch data sets

@@ -39,6 +39,6 @@ def extract_melspec(audio_dir, files, destpath, fps):
         # print(C.shape)
         # print(np.min(C), np.max(C))
         np.save(outfile, np.transpose(C))
-        print(f"audio feature {np.shape(np.transpose(C))}")
+        print(f"audio feature {f}:=  {np.shape(np.transpose(C))}")
         # dataC = np.load(outfile)
         # print('DataC {}'.format(dataC.shape))
