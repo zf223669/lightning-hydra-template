@@ -155,6 +155,34 @@ def slice_data_tri(data, window_size, overlap):
     return sliced
 
 
+def import_and_slice(files, motion_path, speech_data, style_path, slice_window, slice_overlap, mirror=False, start=0,
+                     end=None):
+    """Imports all features and slices them to samples with equal lenth time [samples, timesteps, features]."""
+
+    fi = 0
+    for file in files:
+        print(f'import_and_slice: {file}')
+
+        # slice dataset
+        concat_data, n_motion_feats = import_data(file, motion_path, speech_data, style_path, False, start, end)
+        sliced = slice_data(concat_data, slice_window, slice_overlap)
+
+        if mirror:
+            concat_mirr, nmf = import_data(file, motion_path, speech_data, style_path, True, start, end)
+            sliced_mirr = slice_data(concat_mirr, slice_window, slice_overlap)
+
+            # append to the sliced dataset
+            sliced = np.concatenate((sliced, sliced_mirr), axis=0)
+
+        if fi == 0:
+            out_data = sliced
+        else:
+            out_data = np.concatenate((out_data, sliced), axis=0)
+        fi = fi + 1
+
+    return out_data[:, :, :n_motion_feats], out_data[:, :, n_motion_feats:]
+
+
 def align_tri(data1, data2):
     """Truncates to the shortest length and concatenates"""
 
@@ -226,34 +254,6 @@ def import_and_slice_tri(files, motion_path, speech_data, transcript_path, slice
     return out_data[:, :, :n_motion_feats], out_data[:, :, n_motion_feats:]
 
 
-def import_and_slice(files, motion_path, speech_data, style_path, slice_window, slice_overlap, mirror=False, start=0,
-                     end=None):
-    """Imports all features and slices them to samples with equal lenth time [samples, timesteps, features]."""
-
-    fi = 0
-    for file in files:
-        print(f'import_and_slice: {file}')
-
-        # slice dataset
-        concat_data, n_motion_feats = import_data(file, motion_path, speech_data, style_path, False, start, end)
-        sliced = slice_data(concat_data, slice_window, slice_overlap)
-
-        if mirror:
-            concat_mirr, nmf = import_data(file, motion_path, speech_data, style_path, True, start, end)
-            sliced_mirr = slice_data(concat_mirr, slice_window, slice_overlap)
-
-            # append to the sliced dataset
-            sliced = np.concatenate((sliced, sliced_mirr), axis=0)
-
-        if fi == 0:
-            out_data = sliced
-        else:
-            out_data = np.concatenate((out_data, sliced), axis=0)
-        fi = fi + 1
-
-    return out_data[:, :, :n_motion_feats], out_data[:, :, n_motion_feats:]
-
-
 def create_embedding(name):
     if name == "BERT":
         tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     # print('........audiopath = ' + audiopath)
     held_out = ['Recording_008']
     processed_dir = '../../data/GENEA/processed'
-    print(os.path.exists(textpath))
+    # print(os.path.exists(textpath))
 
     files = []
 
